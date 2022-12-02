@@ -26,7 +26,7 @@
 #include <stdint.h>
 #define CONFIG_GE2D_SRC2
 typedef uint32_t u32;
-typedef long dma_addr_t;
+typedef int64_t dma_addr_t;
 
 
 #ifdef CONFIG_COMPAT
@@ -639,7 +639,7 @@ struct ge2d_canvas_cfg_s {
 	int canvas_index;
 	unsigned int stride;
 	unsigned int height;
-	unsigned long phys_addr;
+	uint64_t phys_addr;
 };
 
 struct ge2d_dma_cfg_s {
@@ -759,7 +759,7 @@ enum ge2d_op_type_e {
 };
 
 struct config_planes_s {
-	unsigned long addr;
+	uint64_t addr;
 	unsigned int w;
 	unsigned int h;
 };
@@ -905,7 +905,7 @@ struct compat_config_para_ex_s {
 #endif
 
 struct config_planes_ion_s {
-	unsigned long addr;
+	uint64_t addr;
 	unsigned int w;
 	unsigned int h;
 	int shared_fd;
