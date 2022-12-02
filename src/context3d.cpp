@@ -21,6 +21,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "surface.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -34,6 +35,26 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 
+#define GET_PROC_ADDRESS(symbol) \
+    p_##symbol = reinterpret_cast<decltype(p_##symbol)>(eglGetProcAddress(#symbol)); \
+    assert(p_##symbol != NULL);
+
+static PFNGLEGLIMAGETARGETTEXTURE2DOESPROC p_glEGLImageTargetTexture2DOES = NULL;
+static PFNEGLDESTROYIMAGEKHRPROC p_eglDestroyImageKHR = NULL;
+static PFNEGLCREATEIMAGEKHRPROC p_eglCreateImageKHR = NULL;
+static PFNGLFRAMEBUFFERTEXTURE2DPROC p_glFramebufferTexture2D = NULL;
+static PFNGLFRAMEBUFFERRENDERBUFFERPROC p_glFramebufferRenderbuffer = NULL;
+static PFNGLBINDRENDERBUFFERPROC p_glBindRenderbuffer = NULL;
+static PFNGLBINDFRAMEBUFFERPROC p_glBindFramebuffer = NULL;
+static PFNGLGETERRORPROC p_glGetError = NULL;
+static PFNGLCHECKFRAMEBUFFERSTATUSPROC p_glCheckFramebufferStatus = NULL;
+static PFNGLACTIVETEXTUREPROC p_glActiveTexture = NULL;
+static PFNGLGENRENDERBUFFERSPROC p_glGenRenderbuffers = NULL;
+static PFNGLBINDTEXTUREPROC p_glBindTexture = NULL;
+static PFNGLGENTEXTURESPROC p_glGenTextures = NULL;
+static PFNGLRENDERBUFFERSTORAGEPROC p_glRenderbufferStorage = NULL;
+static PFNGLFINISHPROC p_glFinish = NULL;
+static PFNGLGENFRAMEBUFFERSPROC p_glGenFramebuffers = NULL;
 
 typedef struct gou_context3d
 {
@@ -54,7 +75,7 @@ typedef struct gou_context3d
 
 static void GLCheckError()
 {
-    int error = glGetError();
+    int error = p_glGetError();
     if (error != GL_NO_ERROR)
     {
         printf("OpenGL error=0x%x\n", error);
@@ -76,7 +97,6 @@ static void EglCheckError()
 static void CreateContext(gou_context3d_t* context, EGLint glMajor, EGLint glMinor)
 {
     EGLBoolean success;
-
 
     context->eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     if (context->eglDisplay == EGL_NO_DISPLAY)
@@ -104,6 +124,22 @@ static void CreateContext(gou_context3d_t* context, EGLint glMajor, EGLint glMin
     printf("EGL: ClientExtensions=%s\n", eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS));
     printf("\n");
 
+    GET_PROC_ADDRESS(glEGLImageTargetTexture2DOES);
+    GET_PROC_ADDRESS(eglDestroyImageKHR);
+    GET_PROC_ADDRESS(eglCreateImageKHR);
+    GET_PROC_ADDRESS(glFramebufferTexture2D);
+    GET_PROC_ADDRESS(glFramebufferRenderbuffer);
+    GET_PROC_ADDRESS(glBindRenderbuffer);
+    GET_PROC_ADDRESS(glBindFramebuffer);
+    GET_PROC_ADDRESS(glGetError);
+    GET_PROC_ADDRESS(glCheckFramebufferStatus);
+    GET_PROC_ADDRESS(glActiveTexture);
+    GET_PROC_ADDRESS(glGenRenderbuffers);
+    GET_PROC_ADDRESS(glBindTexture);
+    GET_PROC_ADDRESS(glGenTextures);
+    GET_PROC_ADDRESS(glRenderbufferStorage);
+    GET_PROC_ADDRESS(glFinish);
+    GET_PROC_ADDRESS(glGenFramebuffers);
 
     // Create a context
     eglBindAPI(EGL_OPENGL_ES_API);
@@ -145,9 +181,6 @@ static EGLImageKHR CreateEglImage(gou_context3d_t* context, gou_surface_t* surfa
         EGL_NONE
     };
 
-    static PFNEGLCREATEIMAGEKHRPROC p_eglCreateImageKHR = (PFNEGLCREATEIMAGEKHRPROC)eglGetProcAddress("eglCreateImageKHR");
-    if (!p_eglCreateImageKHR) abort();
-
     EGLImageKHR eglImage = p_eglCreateImageKHR(context->eglDisplay, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, 0, img_attrs);
     if (eglImage == EGL_NO_IMAGE_KHR)
     {
@@ -160,13 +193,9 @@ static EGLImageKHR CreateEglImage(gou_context3d_t* context, gou_surface_t* surfa
 
 static void DestroyEglImage(gou_context3d_t* context, EGLImageKHR eglImage)
 {
-    static PFNEGLDESTROYIMAGEKHRPROC p_eglDestroyImageKHR = (PFNEGLDESTROYIMAGEKHRPROC)eglGetProcAddress("eglDestroyImageKHR");
-    if (!p_eglDestroyImageKHR) abort();
 
     p_eglDestroyImageKHR(context->eglDisplay, eglImage);
 }
-
-
 
 gou_context3d_t* gou_context3d_create(gou_display_t* display, int width, int height, const gou_context3d_attributes_t* attributes)
 {
@@ -177,11 +206,11 @@ gou_context3d_t* gou_context3d_create(gou_display_t* display, int width, int hei
         abort();
     }
 
+
+
     memset(result, 0, sizeof(*result));
 
-
     result->depthBuffer = 0;
-
 
     uint32_t format;
     if (attributes->red_bits == 5 && attributes->green_bits == 6 && attributes->blue_bits == 5)
@@ -201,19 +230,19 @@ gou_context3d_t* gou_context3d_create(gou_display_t* display, int width, int hei
     result->image = CreateEglImage(result, result->surface);
 
 
-    glGenFramebuffers(1, &result->fbo);
+    p_glGenFramebuffers(1, &result->fbo);
     GLCheckError();
 
-    glBindFramebuffer(GL_FRAMEBUFFER, result->fbo);
+    p_glBindFramebuffer(GL_FRAMEBUFFER, result->fbo);
     GLCheckError();
 
-    glGenTextures(1, &result->texture2D);
+    p_glGenTextures(1, &result->texture2D);
     GLCheckError();
 
-    glActiveTexture(GL_TEXTURE0);
+    p_glActiveTexture(GL_TEXTURE0);
     GLCheckError();
 
-    glBindTexture(GL_TEXTURE_2D, result->texture2D);
+    p_glBindTexture(GL_TEXTURE_2D, result->texture2D);
     GLCheckError();
 
     // glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -222,33 +251,30 @@ gou_context3d_t* gou_context3d_create(gou_display_t* display, int width, int hei
     // glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     // GLCheckError();
 
-    static PFNGLEGLIMAGETARGETTEXTURE2DOESPROC p_glEGLImageTargetTexture2DOES = (PFNGLEGLIMAGETARGETTEXTURE2DOESPROC)eglGetProcAddress("glEGLImageTargetTexture2DOES");
-    if (!p_glEGLImageTargetTexture2DOES) abort();
-
     p_glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, result->image);
     GLCheckError();
 
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,	result->texture2D, 0);
+    p_glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,	result->texture2D, 0);
     GLCheckError();
 
 
     if (attributes->depth_bits)
     {
-        glGenRenderbuffers(1, &result->depthBuffer);
+        p_glGenRenderbuffers(1, &result->depthBuffer);
         GLCheckError();
 
-        glBindRenderbuffer(GL_RENDERBUFFER, result->depthBuffer);
+        p_glBindRenderbuffer(GL_RENDERBUFFER, result->depthBuffer);
         GLCheckError();
 
-        glRenderbufferStorage(GL_RENDERBUFFER, attributes->depth_bits == 24 ? GL_DEPTH_COMPONENT24_OES : GL_DEPTH_COMPONENT16_OES, width, height);
+        p_glRenderbufferStorage(GL_RENDERBUFFER, attributes->depth_bits == 24 ? GL_DEPTH_COMPONENT24_OES : GL_DEPTH_COMPONENT16_OES, width, height);
         GLCheckError();
 
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, result->depthBuffer);
+        p_glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, result->depthBuffer);
         GLCheckError();
     }
 
 
-    GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    GLenum fboStatus = p_glCheckFramebufferStatus(GL_FRAMEBUFFER);
     if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
     {
         printf("FBO: Not Complete (status=0x%x).\n", fboStatus);
@@ -298,13 +324,13 @@ void gou_context3d_swap_buffers(gou_context3d_t* context)
 
 gou_surface_t* gou_context3d_surface_lock(gou_context3d_t* context)
 {
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glFinish();
+    p_glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    p_glFinish();
 
     return context->surface;
 }
 
 void gou_context3d_surface_unlock(gou_context3d_t* context, gou_surface_t* surface)
 {
-    glBindFramebuffer(GL_FRAMEBUFFER, context->fbo);
+    p_glBindFramebuffer(GL_FRAMEBUFFER, context->fbo);
 }
